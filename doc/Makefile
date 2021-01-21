@@ -20,12 +20,14 @@ ifneq "$(PDOK)" "1"
   $(error You need at least pandoc v2.0)
 endif
 
-all: www doc pdf
+all: www doc pdf spec
 www: $(webpages) www/stylesheet.css $(webimages)
 doc: ../README.md
 pdf: ../readme.pdf
+spec: spec/oidn-spec.rst
+	make -C spec html
 
-.PHONY: all www doc pdf clean realclean
+.PHONY: all www doc pdf clean realclean spec
 
 if_is_devel_then = if [[ "${CI_BUILD_REF_NAME}" == "devel" || (-d ../.git && "`git rev-parse --abbrev-ref HEAD`" == "devel") ]] ; then
 
@@ -69,6 +71,13 @@ wwwimgdir:
 $(process_version) tmp/version ../readme.pdf $(tmptexfiles) tmp/api.md tmp/api_html.md tmp/links.md tmp/images_web.md tmp/images_local_pdf.md tmp/images_local_png.md: | tmpdir
 tmpdir:
 	@mkdir -p tmp
+
+## ----------------------------------------------------------------------------
+## Spec
+## ---------------------------------------------------------------------------
+
+spec/oidn-spec.rst: api.md
+	$(PANDOC) --wrap=none --email-obfuscation=none -f markdown $(filter-out webtemplate.html,$+) -V select_$(basename $(@F)) --to rst -o $@
 
 ## -----------------------------------------------------------------------------
 ## Webpages
@@ -164,7 +173,7 @@ tmp/api.tex: filter-latex.py api.md tmp/links.md tmp/images_local_pdf.md
 ## -----------------------------------------------------------------------------
 
 clean:
-	rm -rf www tmp changelog.md __pycache__
+	rm -rf www tmp changelog.md __pycache__ spec/oidn-spec.rst
 
 realclean: clean
 	rm -irf images
