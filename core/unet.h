@@ -41,8 +41,11 @@ namespace oidn {
     bool srgb = false;
     bool directional = false;
     float inputScale = std::numeric_limits<float>::quiet_NaN();
+#if defined(OIDN_DNNL)
     int maxMemoryMB = 6000; // approximate maximum memory usage in MBs
-
+#else
+    int maxMemoryMB = 2000; // BNNS like memory reuse for best performance
+#endif
     // Image dimensions
     int H = 0;            // image height
     int W = 0;            // image width
