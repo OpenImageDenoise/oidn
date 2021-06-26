@@ -14,6 +14,7 @@ namespace oidn {
   struct ImageBuffer
   {
     std::vector<float> buffer;
+    std::vector<float> alpha;
     int width;
     int height;
     int numChannels;
@@ -23,11 +24,15 @@ namespace oidn {
         height(0),
         numChannels(0) {}
 
-    ImageBuffer(int width, int height, int numChannels)
-      : buffer(size_t(width) * height * numChannels),
+    ImageBuffer(int width, int height, int numChannels, bool hasAlpha = false)
+      : buffer(size_t(width) * height * numChannels, 0.0f),
         width(width),
         height(height),
-        numChannels(numChannels) {}
+        numChannels(numChannels)
+    {
+      if (hasAlpha)
+        alpha.resize(width * height, 1.0f);
+    }
 
     operator bool() const
     {

@@ -183,9 +183,52 @@ namespace oidn {
       numChannels = spec.nchannels;
     else if (spec.nchannels < numChannels)
       throw std::runtime_error("not enough image channels");
-    auto image = std::make_shared<ImageBuffer>(spec.width, spec.height, numChannels);
-    if (!in->read_image(0, 0, 0, numChannels, OIIO::TypeDesc::FLOAT, image->data()))
-      throw std::runtime_error("failed to read image data");
+
+    // Find alpha channel.
+    // TODO: Locate indices of RGB from multiple channels.
+    bool hasAlpha = false;
+    int alphaChIdx = -1;
+    for (int i = 0; i < spec.nchannels; i++)
+    {
+      auto name = spec.channelnames[i];
+      std::transform(name.begin(), name.end(), name.begin(), tolower);
+      if (name == "a" || name == "alpha")
+      {
+        hasAlpha = true;
+        alphaChIdx = i;
+        break;
+      }
+    }
+
+    auto image = std::make_shared<ImageBuffer>(spec.width,
+                                               spec.height,
+                                               numChannels,
+                                               hasAlpha);
+    for (int y = 0; y < spec.height; y++)
+    {
+      std::vector<float> scanline(spec.width * spec.nchannels, 0.0f);
+      if (!in->read_scanline(y,
+                             0,
+                             OIIO::TypeDesc::FLOAT,
+                             scanline.data()))
+        throw std::runtime_error("failed to read image data");
+      size_t buffer_offset = y * image->width * image->numChannels;
+      float *buffer_scanline = image->buffer.data() + buffer_offset;
+      for (int x = 0; x < spec.width; x++)
+      {
+        float r = scanline[x * spec.nchannels];
+        buffer_scanline[x * image->numChannels] = r;
+        float g = scanline[x * spec.nchannels + 1];
+        buffer_scanline[x * image->numChannels + 1] = g;
+        float b = scanline[x * spec.nchannels + 2];
+        buffer_scanline[x * image->numChannels + 2] = b;
+        if (hasAlpha)
+        {
+          float a = scanline[x * spec.nchannels + alphaChIdx];
+          image->alpha[x + y * spec.width] = a;
+        }
+      }
+    }
     in->close();
 
 #if OIIO_VERSION < 10903
@@ -200,15 +243,48 @@ namespace oidn {
     if (!out)
       throw std::runtime_error("cannot save unsupported image file format: " + filename);
 
+    const std::string ext = getExtension(filename);
+
+    bool writeAlpha = false;
+    if ((ext == "exr" || ext == "png" || ext.find("tif") == 0) && image.alpha.size())
+    {
+      writeAlpha = true;
+    }
+
+    int numChannels = image.numChannels;
+    if (writeAlpha) numChannels += 1;
     OIIO::ImageSpec spec(image.width,
                          image.height,
-                         image.numChannels,
-                         OIIO::TypeDesc::FLOAT);
+                         numChannels,
+                         ext == "exr" ? OIIO::TypeDesc::HALF : OIIO::TypeDesc::FLOAT);
 
     if (!out->open(filename, spec))
       throw std::runtime_error("cannot create image file: " + filename);
-    if (!out->write_image(OIIO::TypeDesc::FLOAT, image.data()))
-      throw std::runtime_error("failed to write image data");
+    for (int y = 0; y < image.height; y++)
+    {
+      std::vector<float> scanline(image.width * numChannels, 0.0f);
+      size_t buffer_offset = y * image.width * image.numChannels;
+      const float *buffer_scanline = image.buffer.data() + buffer_offset;
+      for (int x = 0; x < image.width; x++)
+      {
+        float r = buffer_scanline[x * image.numChannels];
+        scanline[x * numChannels] = r;
+        float g = buffer_scanline[x * image.numChannels + 1];
+        scanline[x * numChannels + 1] = g;
+        float b = buffer_scanline[x * image.numChannels + 2];
+        scanline[x * numChannels + 2] = b;
+        if (writeAlpha)
+        {
+          size_t alpha_offset = y * image.width;
+          float a = image.alpha[alpha_offset + x];
+          scanline[x * numChannels + numChannels - 1] = a;
+        }
+      }
+      out->write_scanline(y,
+                          0,
+                          OIIO::TypeDesc::FLOAT,
+                          scanline.data());
+    }
     out->close();
 
 #if OIIO_VERSION < 10903

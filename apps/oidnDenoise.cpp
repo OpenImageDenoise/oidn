@@ -211,7 +211,10 @@ int main(int argc, char* argv[])
     if (inplace)
       output = input;
     else
+    {
       output = std::make_shared<ImageBuffer>(width, height, 3);
+      output->alpha = color->alpha;
+    }
 
     // Load the filter weights if specified
     std::vector<char> weights;
