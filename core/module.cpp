@@ -50,7 +50,7 @@ OIDN_NAMESPACE_BEGIN
     // Prevent the system from displaying a message box when the module fails to load
     UINT prevErrorMode = GetErrorMode();
     SetErrorMode(prevErrorMode | SEM_FAILCRITICALERRORS);
-    void* module = LoadLibraryW(path.c_str());
+    void* module = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
     SetErrorMode(prevErrorMode);
   #else
     void* module = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
